@@ -260,8 +260,8 @@ function WireToolObj:SetPos( ent, trace )
 	elseif self.GhostMin then -- tool gives the axis for the OBBmin to use
 		ent:SetPos( trace.HitPos - trace.HitNormal * min[self.GhostMin] )
 	elseif self.ClientConVar.createflat and (self:GetClientNumber("createflat") == 1) ~= ((string.find(self:GetModel(), "pcb") or string.find(self:GetModel(), "hunter")) ~= nil) then
-		-- Screens have odd models. If createflat is 1, or its 0 and its a PHX model, use min.x
-		ent:SetPos( trace.HitPos - trace.HitNormal * min.x )
+		-- Screens have odd models. If createflat is 1, or its 0 and its a PHX model, use max.x
+		ent:SetPos( trace.HitPos + trace.HitNormal * ent:OBBMaxs().x )
 	else -- default to the z OBBmin
 		ent:SetPos( trace.HitPos - trace.HitNormal * min.z )
 	end
@@ -435,6 +435,7 @@ function WireToolSetup.SetupLinking(SingleLink)
 			local success, message = self.Controller:LinkEnt(ent)
 			if success then
 				if self.SingleLink or not ply:KeyDown(IN_SPEED) then self:SetStage(0) end
+				self.HasLinked = true
 				WireLib.AddNotify(ply, "Linked entity: " .. tostring(ent) .. " to the "..self.Name, NOTIFY_GENERIC, 5)
 			else
 				WireLib.AddNotify(ply, message or "That entity is already linked to the "..self.Name, NOTIFY_ERROR, 5, NOTIFYSOUND_DRIP3)
@@ -452,6 +453,7 @@ function WireToolSetup.SetupLinking(SingleLink)
 		local ent = trace.Entity
 
 		if self:CheckHitOwnClass(trace) then -- regardless of stage, reloading on our own class clears it
+			local ply = self:GetOwner()
 			self:SetStage(0)
 			if ent.ClearEntities then
 				ent:ClearEntities()
@@ -466,11 +468,22 @@ function WireToolSetup.SetupLinking(SingleLink)
 			local success, message = self.Controller:UnlinkEnt(ent)
 			if success then
 				if not self:GetOwner():KeyDown(IN_SPEED) then self:SetStage(0) end
+				self.HasLinked = true
 				WireLib.AddNotify(ply, "Unlinked entity: " .. tostring(ent) .. " from the "..self.Name, NOTIFY_GENERIC, 5)
 			else
 				WireLib.AddNotify(ply, message or "That entity is not linked to the "..self.Name, NOTIFY_ERROR, 5, NOTIFYSOUND_DRIP3)
 			end
 			return success
+		end
+	end
+	
+	if not SingleLink then
+		function TOOL:Think()
+			if self.HasLinked then
+				if not self:GetOwner():KeyDown(IN_SPEED) then self:SetStage(0) end
+				if self:GetStage() == 0 then self.HasLinked = false end
+			end
+			WireToolObj.Think(self) -- Basic ghost
 		end
 	end
 end
